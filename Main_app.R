@@ -1,8 +1,11 @@
-library(shiny)
-library(DT)
-library(dplyr)
-library(shinyBS)
+library(shiny)  # Web application framework for R
+library(DT) # R interface to the Javascript library DataTables
+library(dplyr)  # Grammar of data manipulation
+library(shinyBS)  # Adds Bootsrap components to Shiny
 
+getTrainData <- function(from_station, to_station, date, risk_appetite){
+  # Data retrieval code goes here
+}
 
 # Define UI for application
 ui <- fluidPage(
@@ -11,11 +14,11 @@ ui <- fluidPage(
   
   # Top bar layout with input definitions
   fluidRow(
-    column(3, textInput("fromStation", "From:", value = "EDB")),  # Unique ID for 'from' station
-    column(3, textInput("toStation", "To:", value = "KGX")),      # Unique ID for 'to' station
+    column(3, textInput("fromStation", "From:", value = "")),  # Unique ID for 'from' station
+    column(3, selectInput("toStation", "To:", choices = NULL, selectize = TRUE)),
     column(3, dateInput("date", "Date:", value = Sys.Date())),
     column(3, 
-           # Place elements inline
+           # A container with CSS flexbox styling for alignment
            div(style = "display: flex; align-items: center;",  # Use flexbox for alignment
                actionButton("infoBtn", label = icon("info-circle"), class = "btn-xs", style = "margin-left: 5px;"),
                bsTooltip("infoBtn", "This is information about Risk Appetite", "right", trigger = "click hover"),
@@ -33,10 +36,33 @@ ui <- fluidPage(
   )
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
+  # Define a vector of all supported stations
+  all_stations <- c("EDB", "KGX", "LST", "PAD", "VIC", "WAT", "CTK", "Other station codes...")
+
+  # Observer to update the 'To' station input based on user typing
+  observe({
+    search_term <- isolate(input$toStation)
+    
+    # If the search term is NULL or empty, set the choices to all stations
+    if (is.null(search_term) || search_term == "") {
+      updateSelectInput(session, "toStation", choices = all_stations)
+    } else {
+      # Filter the stations based on the search term
+      filtered_stations <- all_stations[grepl(paste0("^", search_term), all_stations, ignore.case = TRUE)]
+      # Update the 'To' station choices
+      updateSelectInput(session, "toStation", choices = filtered_stations)
+    }
+  })
   
   # Placeholder for actual data - need to fetch and process data based on the input
   data <- reactive({   # will re-run when input$fromStation, input$toStation, or input$date changes
+
+    # Validate the station inputs
+    validate(
+      need(input$fromStation %in% c("EDB", "KGX", "ADD_SUPPORTED_STATIONS_HERE"), "The 'From' station is not supported."),
+      need(input$toStation %in% c("EDB", "KGX", "ADD_SUPPORTED_STATIONS_HERE"), "The 'To' station is not supported.")
+    )
     # Fetch data based on input$fromStation, input$toStation, and input$date
     # Convert the delay to a numeric value and add it to the dataframe
     df <- data.frame(
