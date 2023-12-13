@@ -1,15 +1,40 @@
-library(shiny)  # Web application framework for R
-library(DT) # R interface to the Javascript library DataTables
-library(dplyr)  # Grammar of data manipulation
-library(shinyBS)  # Adds Bootsrap components to Shiny
-library(shinyjs)
+library(shiny)   # Web application framework for R
+library(DT)      # R interface to the DataTables JavaScript library
+library(dplyr)   # Data manipulation package
+library(shinyBS) # Adds Bootstrap components to Shiny
+library(shinyjs) # Easily improve the user experience of your Shiny apps
 
-# Construct relative file path for the CSV file
-csvFilePath <- "LookupTable_FAKE.csv"
+# Set the file path for the CSV file
+csvFilePath <- "lookup_table.csv"
 
-# Read CSV data using the relative file path
+# Read CSV data
 train_data <- read.csv(csvFilePath)
 
+# Function to pad times with leading zero if necessary
+pad_time <- function(time) {
+  time_str <- as.character(time)
+  n <- nchar(time_str)
+  
+  if (n == 4) {
+    return(time_str)
+  } else if (n == 3) {
+    return(paste0("0", time_str))
+  } else if (n == 2) {
+    return(paste0("00", time_str))
+  } else if (n == 1) {
+    return(paste0("000", time_str))
+  } else {
+    return(time_str)  # Return the original string if it doesn't match any condition
+  }
+}
+
+# Apply padding to time fields and convert to HH:MM format
+train_data$scheduled_dept <- sapply(train_data$scheduled_dept, pad_time) |> 
+  format(strptime(., format = "%H%M"), format = "%H:%M")
+train_data$scheduled_arr <- sapply(train_data$scheduled_arr, pad_time) |> 
+  format(strptime(., format = "%H%M"), format = "%H:%M")
+
+# --- Login UI ---
 loginUI <- fluidPage(
   useShinyjs(),  # Initialize shinyjs
   div(id = "login",
@@ -21,14 +46,14 @@ loginUI <- fluidPage(
   )
 )
 
-# Define UI for application
+# --- Main UI ---
 ui <- fluidPage(
   loginUI,
   # Use shinyjs to hide the main UI until the user logs in
   conditionalPanel(
     condition = "window.loggedIn === true", #
-      # Application title
     titlePanel("Train Delay Estimator"),  
+
     # Top bar layout with input definitions
     fluidRow(
       column(3, selectInput("fromStation", "From:", choices = NULL, selectize = TRUE)),  # Unique ID for 'from' station
@@ -39,12 +64,22 @@ ui <- fluidPage(
             div(style = "display: flex; align-items: center;",  # Use flexbox for alignment
                 actionButton("infoBtn", label = icon("info-circle"), class = "btn-xs", style = "margin-left: 5px;"),
                 bsTooltip("infoBtn", "This is information about Risk Appetite", "right", trigger = "click hover"),
-                selectInput("selectInputID", "Risk Appetite", choices = c("I'm getting married", "Not too worried", "Get me there today"))
+                selectInput("selectInputID", "Risk Appetite", choices = c("High urgency - I can't be late", "Medium urgency - I can be a bit late", "Low urgency - I'm not in a rush"), selected = "Medium urgency - I can be a bit late"))
                 
             )
+      ),
+    # Key for understanding the circle colors
+    fluidRow(
+      column(12, 
+             div(style = "padding: 10px; background-color: #f7f7f7; border-radius: 5px; margin-top: 20px; margin-bottom: 20px;",
+                 tags$h4("Key:"),
+                 tags$ul(
+                   tags$li(tags$span(style = "height: 10px; width: 10px; background-color: red; border-radius: 50%; display: inline-block; margin-right: 5px;"), "Red Circle: Don't expect this train to be on time"),
+                   tags$li(tags$span(style = "height: 10px; width: 10px; background-color: green; border-radius: 50%; display: inline-block; margin-right: 5px;"), "Green Circle: Train is expected to be on time")
+                 )
+             )
       )
     ),
-
     # DataTable within the full-width column for alignment
     fluidRow(
       column(12, 
@@ -53,8 +88,12 @@ ui <- fluidPage(
     )
   )
 
-)
 
+
+  )
+
+
+# Function to create the credentials.txt file
 create_credentials_file <- function(username, password) {
   # Define the path to the .gitignore subfolder and credentials.txt
   gitignore_folder <- file.path(getwd(), ".gitignore")
@@ -78,8 +117,9 @@ create_credentials_file <- function(username, password) {
   }
 }
 
-
+# --- Server ---
 server <- function(input, output, session) {
+  # 
   observeEvent(input$loginBtn, {
     # Example: Simple authentication logic
   if (!is.null(input$username) && !is.null(input$password)) {
@@ -126,17 +166,6 @@ server <- function(input, output, session) {
     }
   })
 
-  
-  selected_delay_columns <- reactive({
-    if (input$selectInputID == "I'm getting married") {
-      return(c("Delay_Low", "Delay_Arrival_Low"))
-    } else if (input$selectInputID == "Not too worried") {
-      return(c("Delay_Medium", "Delay_Arrival_Medium"))
-    } else if (input$selectInputID == "Get me there today") {
-      return(c("Delay_High", "Delay_Arrival_High"))
-    }
-  })
-
 
   # Placeholder for actual data - need to fetch and process data based on the input
   data <- reactive({   # will re-run when input$fromStation, input$toStation, or input$date changes
@@ -148,80 +177,50 @@ server <- function(input, output, session) {
     )
     # Fetch data based on input$fromStation, input$toStation, and input$date
     # Convert the delay to a numeric value and add it to the dataframe
-    print(format(input$date,"%d/%m/%Y"))
-    filtered_data <- train_data %>% 
-      filter(Date == format(input$date,"%d/%m/%Y"))
-    # sort by departure time
-    filtered_data <- filtered_data[order(filtered_data$Departure.Time),]
 
-    # Check if filtered_data is empty
-    if (nrow(filtered_data) == 0) {
-      return(NULL)
-    }
+    # Print the input date to check its format and value
+    print(paste("Selected date:", format(input$date, "%d/%m/%Y")))
+    print(head(train_data$date_of_service))  # Print the first few rows for a quick check
+    
+    # Convert the input date to the same format as in your dataset
+    filtered_date <- format(input$date, "%d/%m/%Y")
+    
+    # Add a new column to train_data with the formatted date_of_service
+    train_data <- train_data %>%
+      mutate(formatted_date_of_service = format(as.Date(date_of_service, format = "%Y-%m-%d"), "%d/%m/%Y")) # Adjust the format as needed
+    
+    # Filter the data and sort by scheduled_dept
+    filtered_data <- train_data %>%
+      filter(formatted_date_of_service == filtered_date) %>%
+      arrange(scheduled_dept)
 
-    # Placeholder data
-    # df <- data.frame(
-    #   ScheduledDepartureTime = c("18:00", "18:20", "18:45", "19:05", "19:20", "19:32", "19:55"),
-    #   ScheduledArrivalTime = c("19:00", "19:20", "19:45", "20:05", "20:20", "20:32", "20:55"),
-    #   EstDelay = c("2 mins", "3 mins", "20 mins", "15 mins", "6 mins", "7 mins", "15 mins"),
-    #   DelayMins = c(2, 3, 20, 15, 6, 7, 15),  # Numeric values for the delays
-    #   EstimatedArrivalTime = c("21:00", "21:30", "19:45", "20:05", "20:20", "20:32", "20:55"),
-    #   stringsAsFactors = FALSE
-    # )
+    # Print the filtered and sorted data
+    print(filtered_data)
 
     df <- data.frame(
-      ScheduledDepartureTime = filtered_data$Departure.Time,
-      ScheduledArrivalTime = filtered_data$Arrival.Time,
-      EstDelay = filtered_data$Delay,
-      Delay_Low = filtered_data$Delay_Low,
-      Delay_Arrival_Low = filtered_data$Delayed.Arrival.Time_Low,
-      Delay_Medium = filtered_data$Delay_Medium,
-      Delay_Arrival_Medium = filtered_data$Delayed.Arrival.Time_Medium,
-      Delay_High = filtered_data$Delay_High,
-      Delay_Arrival_High = filtered_data$Delayed.Arrival.Time_High
+      ScheduledDepartureTime = filtered_data$scheduled_dept,
+      ScheduledArrivalTime = filtered_data$scheduled_arr,
+      high_urgency = filtered_data$high,
+      medium_urgency = filtered_data$medium,
+      low_urgency = filtered_data$low
     )
 
-    # for variables in df:
-    #   if type is time:
-    #     convert to time HH:MM
-    #   if type is number:
-    #     round to nearest integer
-    df <- df %>%
-      mutate(
-        ScheduledDepartureTime = format(strptime(ScheduledDepartureTime, format = "%H:%M:%S"), format = "%H:%M"),
-        ScheduledArrivalTime = format(strptime(ScheduledArrivalTime, format = "%H:%M:%S"), format = "%H:%M"),
-        Delay_Low = round(as.numeric(Delay_Low)),
-        Delay_Medium = round(as.numeric(Delay_Medium)),
-        Delay_High = round(as.numeric(Delay_High)),
-        # If you have other time columns, repeat the format conversion for those as well
-        Delay_Arrival_Low = format(strptime(Delay_Arrival_Low, format = "%H:%M:%S"), format = "%H:%M"),
-        Delay_Arrival_Medium = format(strptime(Delay_Arrival_Medium, format = "%H:%M:%S"), format = "%H:%M"),
-        Delay_Arrival_High = format(strptime(Delay_Arrival_High, format = "%H:%M:%S"), format = "%H:%M")
-      )
-
     print(df)
-    # Create a bar
-    # need to change based on risk appetite
 
-    # Get the name of the selected delay column
-    delay_col_name <- selected_delay_columns()[1]
-    # Ensure the delay column is treated as numeric
-    delay_num <- as.numeric(df[[delay_col_name]])
-    
-    df$DelayBar <- sapply(delay_num, function(delay) {
-      paste0('<div style="background-color:', 
-             ifelse(delay <= 5, 'green', ifelse(delay <= 15, 'yellow', 'red')), 
-             '; width:', delay * 5, 'px; height:20px;"></div>')
-    })
+    # Define a function to create the circle HTML based on the urgency value
+    create_circle_html <- function(urgency_value) {
+      color <- ifelse(urgency_value == 1, "red", "green")
+      paste0('<div style="border-radius: 50%; width: 20px; height: 20px; background-color: ', color, ';"></div>')
+    }
 
-    # # Add DelayBar to the dataframe
-    # df$DelayBar <- sapply(df$DelayMins, function(delay) {
-    #   paste0('<div style="background-color:', 
-    #          ifelse(delay <= 5, 'green', ifelse(delay <= 15, 'yellow', 'red')), 
-    #          '; width:', delay * 5, 'px; height:20px;"></div>')
-    # })
-
-
+    # Assuming you have high_urgency, medium_urgency, and low_urgency columns in filtered_data
+    df$Circle <- if(input$selectInputID == "High urgency - I can't be late") {
+      sapply(df$high_urgency, create_circle_html)
+    } else if(input$selectInputID == "Medium urgency - I can be a bit late") {
+      sapply(df$medium_urgency, create_circle_html)
+    } else { # Low urgency
+      sapply(df$low_urgency, create_circle_html)
+    }
 
     df
   })
@@ -235,38 +234,29 @@ server <- function(input, output, session) {
         HTML("No predictions available for the selected date.")
       )
     } else {
-      # Render the data table when data is available
+      #Render the data table when data is available
       DT::dataTableOutput("scheduleTable")
     }
   })
 
   # Generate the schedule table with the delay bars
   output$scheduleTable <- DT::renderDataTable({
-    # Use the selected delay columns
-    delay_cols <- selected_delay_columns()
-
+    # # Use the selected delay columns
     if (is.null(data())) {
       return(NULL)
     }
 
     df <- data() %>%
-      select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar, all_of(delay_cols))
-
-    # select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar) # Reorder columns
-    # select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar,
-    #          if (input$selectInputID == "I'm getting married") Delay_Arrival_Low
-    #          else if (input$selectInputID == "Not too worried") Delay_Arrival_Medium
-    #          else if (input$selectInputID == "Get me there today") Delay_Arrival_High
-    #   ) # Reorder columns
+      select(ScheduledDepartureTime, ScheduledArrivalTime, Circle)
 
     datatable(df, options = list(
-      scrollY = '600px', # Increase the scrolling area for the DataTable
+      scrollY = '450px', # Increase the scrolling area for the DataTable
       scrollX = TRUE,    # Enable horizontal scrolling
       scrollCollapse = TRUE,
       paging = FALSE,
       searching = FALSE # Disable the searchbar
-    ), rownames = FALSE, escape = FALSE) %>% # Correct placement of escape = FALSE
-    formatStyle('ScheduledDepartureTime', backgroundColor = 'lightblue', color = 'black') #%>% # Format the departure time column
+    ), rownames = FALSE, escape = FALSE) #%>% # Correct placement of escape = FALSE
+    #formatStyle('ScheduledDepartureTime', backgroundColor = 'lightblue', color = 'black') #%>% # Format the departure time column
   })
 }
 
