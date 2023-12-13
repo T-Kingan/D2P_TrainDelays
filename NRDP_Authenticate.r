@@ -5,9 +5,46 @@ library(jsonlite)
 library(xml2)
 library(tidyverse)
 
-setwd("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework")
-source("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/login_details.r")
+#setwd("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework")
+#source("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/login_details.r")
 #C:\Users\thoma\OneDrive - Imperial College London\Des Eng Y4\Data2Product\Coursework\login_details.r
+
+# Function to read username and password from a .txt file
+read_login_details <- function() {
+  login_file <- ".gitignore/login_details.txt"
+  if (file.exists(login_file)) {
+    lines <- readLines(login_file)
+    username <- NULL
+    password <- NULL
+    
+    for (line in lines) {
+      parts <- strsplit(line, ":")
+      if (length(parts) == 2) {
+        key <- trimws(parts[1])
+        value <- trimws(parts[2])
+        
+        if (key == "Username") {
+          username <- value
+        } else if (key == "Password") {
+          password <- value
+        }
+      }
+    }
+    
+    if (!is.null(username) && !is.null(password)) {
+      return(list(username = username, password = password))
+    } else {
+      stop("Invalid format in login_details.txt. It should contain 'Username:' and 'Password:' lines.")
+    }
+  } else {
+    stop("login_details.txt not found in the .gitignore subfolder.")
+  }
+}
+
+# Get the username and password from the .txt file
+login_info <- read_login_details()
+username <- login_info$username
+password <- login_info$password
 
 # Function to authenticate and get token (JSON)
 get_auth_token <- function() {   #function(email, password)

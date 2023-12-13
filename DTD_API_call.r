@@ -1,10 +1,14 @@
+# File to get a zip file of timetable data
+
 library(httr)
 library(jsonlite)
 library(xml2)
 library(tidyverse)
 
 # Adding Authentication to the R script
-source("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/NRDP_Authenticate.r")
+#source("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/NRDP_Authenticate.r")
+# make source relative
+source("NRDP_Authenticate.r")
 
 auth_details <- get_auth_token()
 token <- auth_details$token

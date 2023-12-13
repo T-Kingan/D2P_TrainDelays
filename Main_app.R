@@ -55,14 +55,35 @@ ui <- fluidPage(
 
 )
 
+create_credentials_file <- function(username, password) {
+  # Define the path to the .gitignore subfolder and credentials.txt
+  gitignore_folder <- file.path(getwd(), ".gitignore")
+  credentials_file_path <- file.path(gitignore_folder, "credentials.txt")
+
+  # Check if the .gitignore folder exists
+  if (!dir.exists(gitignore_folder)) {
+    # Create the .gitignore folder if it doesn't exist
+    dir.create(gitignore_folder)
+    cat(".gitignore folder created.\n")
+  }
+
+  # Check if credentials.txt exists in the .gitignore folder
+  if (!file.exists(credentials_file_path)) {
+    # Write username and password to credentials.txt
+    credentials <- paste("Username:", username, "\nPassword:", password)
+    writeLines(credentials, credentials_file_path)
+    cat("credentials.txt file created in the .gitignore folder and credentials written.\n")
+  } else {
+    cat("credentials.txt already exists in the .gitignore folder.\n")
+  }
+}
 
 
 server <- function(input, output, session) {
   observeEvent(input$loginBtn, {
     # Example: Simple authentication logic
   if (!is.null(input$username) && !is.null(input$password)) {
-    credentials <- paste("Username:", input$username, "\nPassword:", input$password)
-    writeLines(credentials, "credentials.txt")
+    create_credentials_file(input$username, input$password)
     shinyjs::runjs("window.loggedIn = true")  # Set JavaScript variable on successful login
     shinyjs::hide("login")  # Hide the login UI
   } else {
