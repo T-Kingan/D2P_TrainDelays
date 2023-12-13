@@ -31,20 +31,11 @@ ui <- fluidPage(
            )
     )
   ),
-  
-  # Conditional message when no data is available
-  conditionalPanel(
-    condition = "output.scheduleTable === null || output.scheduleTable.length === 0",
-    div(
-      class = "no-data-message",
-      HTML("No data available for the selected criteria.")
-    )
-  ),
 
   # DataTable within the full-width column for alignment
   fluidRow(
     column(12, 
-           DT::dataTableOutput("scheduleTable") # DataTable output
+           uiOutput("tableOrMessage")  # Dynamically generated UI for the table or message
     )
   )
 )
@@ -185,7 +176,20 @@ observe({
     df
   })
   
-  
+  # Dynamically render the data table or a message if no data is available
+  output$tableOrMessage <- renderUI({
+    if (is.null(data()) || nrow(data()) == 0) {
+      # Display a message when no data is available
+      div(
+        class = "no-data-message",
+        HTML("No predictions available for the selected date.")
+      )
+    } else {
+      # Render the data table when data is available
+      DT::dataTableOutput("scheduleTable")
+    }
+  })
+
   # Generate the schedule table with the delay bars
   output$scheduleTable <- DT::renderDataTable({
     # Use the selected delay columns
