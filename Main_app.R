@@ -2,45 +2,74 @@ library(shiny)  # Web application framework for R
 library(DT) # R interface to the Javascript library DataTables
 library(dplyr)  # Grammar of data manipulation
 library(shinyBS)  # Adds Bootsrap components to Shiny
+library(shinyjs)
 
-getTrainData <- function(from_station, to_station, date, risk_appetite){
-  # Data retrieval code goes here
-}
+# Construct relative file path for the CSV file
+csvFilePath <- "LookupTable_FAKE.csv"
 
-train_data <- read.csv("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Git/Data2Product/LookupTable_FAKE.csv")
-#train_data <- read.csv("LookupTable_FAKE.csv")
-# "C:\Users\thoma\OneDrive - Imperial College London\Des Eng Y4\Data2Product\Git\Data2Product\LookupTable_FAKE.csv"
+# Read CSV data using the relative file path
+train_data <- read.csv(csvFilePath)
 
-# Define UI for application
-ui <- fluidPage(
-  # Application title
-  titlePanel("Train Delay Estimator"),
-  
-  # Top bar layout with input definitions
-  fluidRow(
-    column(3, selectInput("fromStation", "From:", choices = NULL, selectize = TRUE)),  # Unique ID for 'from' station
-    column(3, selectInput("toStation", "To:", choices = NULL, selectize = TRUE)),
-    column(3, dateInput("date", "Date:", value = Sys.Date())),
-    column(3, 
-           # A container with CSS flexbox styling for alignment
-           div(style = "display: flex; align-items: center;",  # Use flexbox for alignment
-               actionButton("infoBtn", label = icon("info-circle"), class = "btn-xs", style = "margin-left: 5px;"),
-               bsTooltip("infoBtn", "This is information about Risk Appetite", "right", trigger = "click hover"),
-               selectInput("selectInputID", "Risk Appetite", choices = c("I'm getting married", "Not too worried", "Get me there today"))
-               
-           )
-    )
-  ),
-
-  # DataTable within the full-width column for alignment
-  fluidRow(
-    column(12, 
-           uiOutput("tableOrMessage")  # Dynamically generated UI for the table or message
-    )
+loginUI <- fluidPage(
+  useShinyjs(),  # Initialize shinyjs
+  div(id = "login",
+      wellPanel(
+        textInput("username", "Username", value = ""),
+        passwordInput("password", "Password", value = ""),
+        actionButton("loginBtn", "Log in")
+      )
   )
 )
 
+# Define UI for application
+ui <- fluidPage(
+  loginUI,
+  # Use shinyjs to hide the main UI until the user logs in
+  conditionalPanel(
+    condition = "window.loggedIn === true", #
+      # Application title
+    titlePanel("Train Delay Estimator"),  
+    # Top bar layout with input definitions
+    fluidRow(
+      column(3, selectInput("fromStation", "From:", choices = NULL, selectize = TRUE)),  # Unique ID for 'from' station
+      column(3, selectInput("toStation", "To:", choices = NULL, selectize = TRUE)),
+      column(3, dateInput("date", "Date:", value = Sys.Date())),
+      column(3, 
+            # A container with CSS flexbox styling for alignment
+            div(style = "display: flex; align-items: center;",  # Use flexbox for alignment
+                actionButton("infoBtn", label = icon("info-circle"), class = "btn-xs", style = "margin-left: 5px;"),
+                bsTooltip("infoBtn", "This is information about Risk Appetite", "right", trigger = "click hover"),
+                selectInput("selectInputID", "Risk Appetite", choices = c("I'm getting married", "Not too worried", "Get me there today"))
+                
+            )
+      )
+    ),
+
+    # DataTable within the full-width column for alignment
+    fluidRow(
+      column(12, 
+            uiOutput("tableOrMessage")  # Dynamically generated UI for the table or message
+      )
+    )
+  )
+
+)
+
+
+
 server <- function(input, output, session) {
+  observeEvent(input$loginBtn, {
+    # Example: Simple authentication logic
+  if (!is.null(input$username) && !is.null(input$password)) {
+    credentials <- paste("Username:", input$username, "\nPassword:", input$password)
+    writeLines(credentials, "credentials.txt")
+    shinyjs::runjs("window.loggedIn = true")  # Set JavaScript variable on successful login
+    shinyjs::hide("login")  # Hide the login UI
+  } else {
+      shinyjs::alert("Incorrect username or password!")
+    }
+  })
+
   # Define a vector of all supported stations
   all_stations <- c("EDB", "KGX", "LST", "PAD", "VIC", "WAT", "CTK", "Other station codes...")
   to_stations <- "EDB"
@@ -62,19 +91,19 @@ server <- function(input, output, session) {
   })
 
   # Observer to update the 'From' station input based on user typing
-observe({
-  search_term <- isolate(input$fromStation)
-  
-  # If the search term is NULL or empty, set the choices to all stations
-  if (is.null(search_term) || search_term == "") {
-    updateSelectInput(session, "fromStation", choices = from_stations)
-  } else {
-    # Filter the stations based on the search term
-    filtered_stations <- from_stations[grepl(paste0("^", search_term), from_stations, ignore.case = TRUE)]
-    # Update the 'From' station choices
-    updateSelectInput(session, "fromStation", choices = filtered_stations)
-  }
-})
+  observe({
+    search_term <- isolate(input$fromStation)
+    
+    # If the search term is NULL or empty, set the choices to all stations
+    if (is.null(search_term) || search_term == "") {
+      updateSelectInput(session, "fromStation", choices = from_stations)
+    } else {
+      # Filter the stations based on the search term
+      filtered_stations <- from_stations[grepl(paste0("^", search_term), from_stations, ignore.case = TRUE)]
+      # Update the 'From' station choices
+      updateSelectInput(session, "fromStation", choices = filtered_stations)
+    }
+  })
 
   
   selected_delay_columns <- reactive({
