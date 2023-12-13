@@ -18,7 +18,7 @@ ui <- fluidPage(
   
   # Top bar layout with input definitions
   fluidRow(
-    column(3, textInput("fromStation", "From:", value = "")),  # Unique ID for 'from' station
+    column(3, selectInput("fromStation", "From:", choices = NULL, selectize = TRUE)),  # Unique ID for 'from' station
     column(3, selectInput("toStation", "To:", choices = NULL, selectize = TRUE)),
     column(3, dateInput("date", "Date:", value = Sys.Date())),
     column(3, 
@@ -32,6 +32,15 @@ ui <- fluidPage(
     )
   ),
   
+  # Conditional message when no data is available
+  conditionalPanel(
+    condition = "output.scheduleTable === null || output.scheduleTable.length === 0",
+    div(
+      class = "no-data-message",
+      HTML("No data available for the selected criteria.")
+    )
+  ),
+
   # DataTable within the full-width column for alignment
   fluidRow(
     column(12, 
@@ -43,6 +52,8 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   # Define a vector of all supported stations
   all_stations <- c("EDB", "KGX", "LST", "PAD", "VIC", "WAT", "CTK", "Other station codes...")
+  to_stations <- "EDB"
+  from_stations <- "KGX"
 
   # Observer to update the 'To' station input based on user typing
   observe({
@@ -50,15 +61,42 @@ server <- function(input, output, session) {
     
     # If the search term is NULL or empty, set the choices to all stations
     if (is.null(search_term) || search_term == "") {
-      updateSelectInput(session, "toStation", choices = all_stations)
+      updateSelectInput(session, "toStation", choices = to_stations)
     } else {
       # Filter the stations based on the search term
-      filtered_stations <- all_stations[grepl(paste0("^", search_term), all_stations, ignore.case = TRUE)]
+      filtered_stations <- to_stations[grepl(paste0("^", search_term), to_stations, ignore.case = TRUE)]
       # Update the 'To' station choices
       updateSelectInput(session, "toStation", choices = filtered_stations)
     }
   })
+
+  # Observer to update the 'From' station input based on user typing
+observe({
+  search_term <- isolate(input$fromStation)
   
+  # If the search term is NULL or empty, set the choices to all stations
+  if (is.null(search_term) || search_term == "") {
+    updateSelectInput(session, "fromStation", choices = from_stations)
+  } else {
+    # Filter the stations based on the search term
+    filtered_stations <- from_stations[grepl(paste0("^", search_term), from_stations, ignore.case = TRUE)]
+    # Update the 'From' station choices
+    updateSelectInput(session, "fromStation", choices = filtered_stations)
+  }
+})
+
+  
+  selected_delay_columns <- reactive({
+    if (input$selectInputID == "I'm getting married") {
+      return(c("Delay_Low", "Delay_Arrival_Low"))
+    } else if (input$selectInputID == "Not too worried") {
+      return(c("Delay_Medium", "Delay_Arrival_Medium"))
+    } else if (input$selectInputID == "Get me there today") {
+      return(c("Delay_High", "Delay_Arrival_High"))
+    }
+  })
+
+
   # Placeholder for actual data - need to fetch and process data based on the input
   data <- reactive({   # will re-run when input$fromStation, input$toStation, or input$date changes
 
@@ -72,7 +110,13 @@ server <- function(input, output, session) {
     print(format(input$date,"%d/%m/%Y"))
     filtered_data <- train_data %>% 
       filter(Date == format(input$date,"%d/%m/%Y"))
-    #print(filtered_data)
+    # sort by departure time
+    filtered_data <- filtered_data[order(filtered_data$Departure.Time),]
+
+    # Check if filtered_data is empty
+    if (nrow(filtered_data) == 0) {
+      return(NULL)
+    }
 
     # Placeholder data
     # df <- data.frame(
@@ -95,31 +139,75 @@ server <- function(input, output, session) {
       Delay_High = filtered_data$Delay_High,
       Delay_Arrival_High = filtered_data$Delayed.Arrival.Time_High
     )
+
+    # for variables in df:
+    #   if type is time:
+    #     convert to time HH:MM
+    #   if type is number:
+    #     round to nearest integer
+    df <- df %>%
+      mutate(
+        ScheduledDepartureTime = format(strptime(ScheduledDepartureTime, format = "%H:%M:%S"), format = "%H:%M"),
+        ScheduledArrivalTime = format(strptime(ScheduledArrivalTime, format = "%H:%M:%S"), format = "%H:%M"),
+        Delay_Low = round(as.numeric(Delay_Low)),
+        Delay_Medium = round(as.numeric(Delay_Medium)),
+        Delay_High = round(as.numeric(Delay_High)),
+        # If you have other time columns, repeat the format conversion for those as well
+        Delay_Arrival_Low = format(strptime(Delay_Arrival_Low, format = "%H:%M:%S"), format = "%H:%M"),
+        Delay_Arrival_Medium = format(strptime(Delay_Arrival_Medium, format = "%H:%M:%S"), format = "%H:%M"),
+        Delay_Arrival_High = format(strptime(Delay_Arrival_High, format = "%H:%M:%S"), format = "%H:%M")
+      )
+
     print(df)
     # Create a bar
     # need to change based on risk appetite
 
+    # Get the name of the selected delay column
+    delay_col_name <- selected_delay_columns()[1]
+    # Ensure the delay column is treated as numeric
+    delay_num <- as.numeric(df[[delay_col_name]])
     
-
-    df$DelayBar <- sapply(df$EstDelay, function(delay) {
+    df$DelayBar <- sapply(delay_num, function(delay) {
       paste0('<div style="background-color:', 
              ifelse(delay <= 5, 'green', ifelse(delay <= 15, 'yellow', 'red')), 
              '; width:', delay * 5, 'px; height:20px;"></div>')
     })
+
+    # # Add DelayBar to the dataframe
+    # df$DelayBar <- sapply(df$DelayMins, function(delay) {
+    #   paste0('<div style="background-color:', 
+    #          ifelse(delay <= 5, 'green', ifelse(delay <= 15, 'yellow', 'red')), 
+    #          '; width:', delay * 5, 'px; height:20px;"></div>')
+    # })
+
+
+
     df
   })
   
+  
   # Generate the schedule table with the delay bars
   output$scheduleTable <- DT::renderDataTable({
+    # Use the selected delay columns
+    delay_cols <- selected_delay_columns()
+
+    if (is.null(data())) {
+      return(NULL)
+    }
+
     df <- data() %>%
-      select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar) # Reorder columns
+      select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar, all_of(delay_cols))
+
+    # select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar) # Reorder columns
     # select(ScheduledDepartureTime, ScheduledArrivalTime, DelayBar,
     #          if (input$selectInputID == "I'm getting married") Delay_Arrival_Low
     #          else if (input$selectInputID == "Not too worried") Delay_Arrival_Medium
     #          else if (input$selectInputID == "Get me there today") Delay_Arrival_High
     #   ) # Reorder columns
+
     datatable(df, options = list(
-      scrollY = '200px',
+      scrollY = '600px', # Increase the scrolling area for the DataTable
+      scrollX = TRUE,    # Enable horizontal scrolling
       scrollCollapse = TRUE,
       paging = FALSE,
       searching = FALSE # Disable the searchbar
