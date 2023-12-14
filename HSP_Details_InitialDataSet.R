@@ -76,8 +76,8 @@ metrics_url <- "https://hsp-prod.rockshore.net/api/v1/serviceMetrics"
 details_url <- "https://hsp-prod.rockshore.net/api/v1/serviceDetails"
 
 
-csv_file_path <- "C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/train_journeys - Copy V2.csv"
-new_csv_file_path <- "C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/train_journeys_Details.csv"
+csv_file_path <- "train_journeys.csv"
+new_csv_file_path <- "train_journeys_Details.csv"
 # Load the CSV into dataframe
 train_journeys_df <- read.csv(csv_file_path, header = TRUE, sep = ",")
 

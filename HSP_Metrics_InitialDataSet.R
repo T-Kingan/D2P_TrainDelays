@@ -5,7 +5,7 @@ library(dplyr)
 library(lubridate) # For date manipulation
 
 # Path to CSV file to store the results
-csv_file_path <- "C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/train_journeys.csv"
+csv_file_path <- "train_journeys.csv"
 
 # Function to read username and password from a .txt file
 read_login_details <- function() {
