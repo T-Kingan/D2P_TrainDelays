@@ -63,7 +63,7 @@ ui <- fluidPage(
             div(style = "display: flex; align-items: center;",  # Use flexbox for alignment
                 actionButton("infoBtn", label = icon("info-circle"), class = "btn-xs", style = "margin-left: 5px;"),
                 bsTooltip("infoBtn", "This is information about Risk Appetite", "right", trigger = "click hover"),
-                selectInput("selectInputID", "Risk Appetite", choices = c("High urgency - I can't be late", "Medium urgency - I can be a bit late", "Low urgency - I'm not in a rush"), selected = "Medium urgency - I can be a bit late"))
+                selectInput("selectInputID", "Risk Appetite", choices = c("High urgency - I can't be late", "Medium urgency - I could maybe be late", "Low urgency - I'm not in a rush"), selected = "Medium urgency - I can be a bit late"))
                 
             )
       ),
