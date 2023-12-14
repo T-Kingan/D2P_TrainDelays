@@ -5,24 +5,21 @@ library(jsonlite)
 library(xml2)
 library(tidyverse)
 
-#setwd("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework")
-#source("C:/Users/thoma/OneDrive - Imperial College London/Des Eng Y4/Data2Product/Coursework/login_details.r")
-#C:\Users\thoma\OneDrive - Imperial College London\Des Eng Y4\Data2Product\Coursework\login_details.r
-
 # Function to read username and password from a .txt file
 read_login_details <- function() {
-  login_file <- ".gitignore/login_details.txt"
+  login_file <- ".gitignore/credentials.txt"
   if (file.exists(login_file)) {
     lines <- readLines(login_file)
+    #print(lines)
     username <- NULL
     password <- NULL
     
     for (line in lines) {
-      parts <- strsplit(line, ":")
+      parts <- strsplit(line, ":")[[1]]  # Access the first (and only) element of the list
       if (length(parts) == 2) {
-        key <- trimws(parts[1])
-        value <- trimws(parts[2])
-        
+        key <- trimws(parts[1])   # Trim whitespace from the key
+        value <- trimws(parts[2]) # Trim whitespace from the value
+
         if (key == "Username") {
           username <- value
         } else if (key == "Password") {
@@ -34,10 +31,12 @@ read_login_details <- function() {
     if (!is.null(username) && !is.null(password)) {
       return(list(username = username, password = password))
     } else {
-      stop("Invalid format in login_details.txt. It should contain 'Username:' and 'Password:' lines.")
+      print(username)
+      print(password)
+      stop("Invalid format in credentials.txt. It should contain 'Username:' and 'Password:' lines.")
     }
   } else {
-    stop("login_details.txt not found in the .gitignore subfolder.")
+    stop("credentials.txt not found in the .gitignore subfolder.")
   }
 }
 
@@ -48,7 +47,7 @@ password <- login_info$password
 
 # Function to authenticate and get token (JSON)
 get_auth_token <- function() {   #function(email, password)
-  body <- list(username = email, password = password)
+  body <- list(username = username, password = password)
   response <- POST(
     url = "https://opendata.nationalrail.co.uk/authenticate",
     body = body,

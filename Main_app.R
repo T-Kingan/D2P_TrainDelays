@@ -29,10 +29,9 @@ pad_time <- function(time) {
 }
 
 # Apply padding to time fields and convert to HH:MM format
-train_data$scheduled_dept <- sapply(train_data$scheduled_dept, pad_time) |> 
-  format(strptime(., format = "%H%M"), format = "%H:%M")
-train_data$scheduled_arr <- sapply(train_data$scheduled_arr, pad_time) |> 
-  format(strptime(., format = "%H%M"), format = "%H:%M")
+train_data$scheduled_dept <- format(strptime(sapply(train_data$scheduled_dept, pad_time), format = "%H%M"), format = "%H:%M")
+train_data$scheduled_arr <- format(strptime(sapply(train_data$scheduled_arr, pad_time), format = "%H%M"), format = "%H:%M")
+
 
 # --- Login UI ---
 loginUI <- fluidPage(
